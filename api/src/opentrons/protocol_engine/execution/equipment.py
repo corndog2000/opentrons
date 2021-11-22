@@ -7,7 +7,7 @@ from opentrons.calibration_storage.helpers import uri_from_details
 from opentrons.protocols.models import LabwareDefinition
 from opentrons.protocols.geometry.module_geometry import (
     resolve_module_type,
-    module_model_from_string
+    module_model_from_string,
 )
 from opentrons.types import MountType
 from opentrons.hardware_control.api import API as HardwareAPI
@@ -37,6 +37,7 @@ class LoadedPipetteData:
 @dataclass(frozen=True)
 class LoadedModuleData:
     """The result of a load module procedure."""
+
     module_id: str
     module_serial: Optional[str]
     definition: ModuleDefinitionV2
@@ -153,10 +154,7 @@ class EquipmentHandler:
         return LoadedPipetteData(pipette_id=pipette_id)
 
     async def load_module(
-        self,
-        model: ModuleModels,
-        location: DeckSlotLocation,
-        module_id: Optional[str]
+        self, model: ModuleModels, location: DeckSlotLocation, module_id: Optional[str]
     ) -> LoadedModuleData:
         """Ensure the required module is attached.
 
@@ -172,11 +170,9 @@ class EquipmentHandler:
         hw_model = module_model_from_string(model.value)
         model_type = resolve_module_type(hw_model)
         definition = await self._module_data_provider.get_module_definition(model)
-        try:
-            available, simulating = await self._hardware_api.find_modules(
-                hw_model, model_type)
-        except:
-            raise Exception("Unexpected error fetching modules attached.")
+        available, simulating = await self._hardware_api.find_modules(
+            hw_model, model_type
+        )
 
         module_id = module_id or self._model_utils.generate_id()
 
@@ -185,15 +181,18 @@ class EquipmentHandler:
             # TODO (spp, 2021-11-22: make this accept compatible module models)
             if mod.model() == model.value:
                 if not self._state_store.modules.get_by_serial(
-                        mod.device_info['serial']
+                    mod.device_info["serial"]
                 ):
                     hc_mod_instance = mod
                     break
 
         if simulating and not hc_mod_instance:
             hc_mod_instance = simulating
+
+        assert hc_mod_instance, "Expected a module instance"
+
         return LoadedModuleData(
             module_id=module_id,
-            module_serial=hc_mod_instance.device_info.get('serial'),
+            module_serial=hc_mod_instance.device_info.get("serial"),
             definition=definition,
         )

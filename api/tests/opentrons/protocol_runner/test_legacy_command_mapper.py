@@ -265,7 +265,7 @@ def test_map_module_load() -> None:
         module_model=LegacyMagneticModuleModel.MAGNETIC_V2,
         deck_slot=DeckSlotName.SLOT_1,
         configuration="conf",
-        module_serial="module-serial"
+        module_serial="module-serial",
     )
     expected_output = pe_commands.LoadModule.construct(
         id=matchers.IsA(str),
@@ -279,8 +279,7 @@ def test_map_module_load() -> None:
             moduleId=matchers.IsA(str),
         ),
         result=pe_commands.LoadModuleResult.construct(
-            moduleId=matchers.IsA(str),
-            moduleSerial="module-serial"
+            moduleId=matchers.IsA(str), moduleSerial="module-serial"
         ),
     )
     output = LegacyCommandMapper().map_module_load(input)

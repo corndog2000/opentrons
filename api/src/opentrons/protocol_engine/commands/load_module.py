@@ -59,8 +59,7 @@ class LoadModuleResult(BaseModel):
     )
 
     moduleSerial: Optional[str] = Field(
-        None,
-        description="Hardware serial number of the module, if connected."
+        None, description="Hardware serial number of the module, if connected."
     )
 
 
@@ -74,8 +73,9 @@ class LoadModuleImplementation(AbstractCommandImpl[LoadModuleParams, LoadModuleR
             location=params.location,
             module_id=params.moduleId,
         )
-        return LoadModuleResult(moduleId=loaded_module.module_id,
-                                moduleSerial=loaded_module.module_serial)
+        return LoadModuleResult(
+            moduleId=loaded_module.module_id, moduleSerial=loaded_module.module_serial
+        )
 
 
 class LoadModule(BaseCommand[LoadModuleParams, LoadModuleResult]):

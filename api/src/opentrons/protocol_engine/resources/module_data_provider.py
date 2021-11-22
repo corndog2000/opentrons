@@ -11,9 +11,7 @@ class ModuleDataProvider:
     """Module data provider."""
 
     @staticmethod
-    async def get_module_definition(
-        model: ModuleModels
-    ) -> ModuleDefinitionV2:
+    async def get_module_definition(model: ModuleModels) -> ModuleDefinitionV2:
         """Get the module definition."""
         legacy_model = module_model_from_string(model.value)
         # legacy_module_type = resolve_module_type(legacy_model)

@@ -1,6 +1,6 @@
 """Basic modules data state and store."""
 from dataclasses import dataclass, replace
-from typing import Dict, List, Mapping
+from typing import Any, List, Mapping
 
 from ..types import LoadedModule, ModuleModels
 from .. import errors
@@ -10,14 +10,10 @@ from .abstract_store import HasState, HandlesActions
 
 
 @dataclass(frozen=True)
-class HardwareModule:
-    """Hardware module data."""
-
-
-@dataclass(frozen=True)
 class ModuleState:
-    """Basic module data state and getter methods."""
-    modules_by_id: Dict[str, LoadedModule]
+    """Basic module data state."""
+
+    modules_by_id: Mapping[str, LoadedModule]
 
 
 class ModuleStore(HasState[ModuleState], HandlesActions):
@@ -37,18 +33,15 @@ class ModuleStore(HasState[ModuleState], HandlesActions):
     def _handle_command(self, command: Command) -> None:
         if isinstance(command.result, LoadModuleResult):
             module_id = command.result.moduleId
-            new_module_by_id = self._state.modules_by_id.copy()
+            new_module_by_id = dict(self._state.modules_by_id)
             new_module_by_id[module_id] = LoadedModule(
                 id=module_id,
                 model=command.params.model,
                 location=command.params.location,
-                serial=command.result.moduleSerial
+                serial=command.result.moduleSerial,
             )
 
-            self._state = replace(
-                self._state,
-                modules_by_id=new_module_by_id
-            )
+            self._state = replace(self._state, modules_by_id=new_module_by_id)
 
 
 class ModuleView(HasState[ModuleState]):
@@ -74,29 +67,34 @@ class ModuleView(HasState[ModuleState]):
             mod_list.append(mod)
         return mod_list
 
-    def get_module_type(self, module_id) -> str:
+    def get_module_type(self, module_id: str) -> str:
         """Get module type."""
         # TODO (spp): maybe just use ModuleType from hardware control?
         module = self._state.modules_by_id[module_id]
         model = module.model
-        if model in (ModuleModels.TEMPERATURE_MODULE_V1,
-                     ModuleModels.TEMPERATURE_MODULE_V2):
+        if model in (
+            ModuleModels.TEMPERATURE_MODULE_V1,
+            ModuleModels.TEMPERATURE_MODULE_V2,
+        ):
             return "temperatureModuleType"
-        elif model in (ModuleModels.MAGNETIC_MODULE_V1,
-                       ModuleModels.MAGNETIC_MODULE_V2):
+        elif model in (
+            ModuleModels.MAGNETIC_MODULE_V1,
+            ModuleModels.MAGNETIC_MODULE_V2,
+        ):
             return "magneticModuleType"
         elif model == ModuleModels.THERMOCYCLER_MODULE_V1:
             return "thermocyclerModuleType"
 
-    def get_hardware_module(
-            self,
-            module_id: str,
-            attached_modules
-    ):
+        assert False, "Expected a valid module"
+
+    def get_hardware_module(self, module_id: str, attached_modules: Any) -> Any:
         """Get a module's device info by ID."""
+        raise NotImplementedError()
 
     def get_by_serial(self, serial: str) -> LoadedModule:
         """Get a loaded module by its serial number."""
         for mod in self.get_all():
             if mod.serial == serial:
                 return mod
+
+        assert False, "Expected a module"
