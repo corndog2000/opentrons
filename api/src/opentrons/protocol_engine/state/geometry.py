@@ -15,7 +15,7 @@ from ..types import (
     DeckSlotLocation,
 )
 from .labware import LabwareView
-
+from .modules import ModuleView
 
 DEFAULT_TIP_DROP_HEIGHT_FACTOR = 0.5
 
@@ -36,11 +36,10 @@ class TipGeometry:
 class GeometryView:
     """Geometry computed state getters."""
 
-    _labware: LabwareView
-
-    def __init__(self, labware_view: LabwareView) -> None:
+    def __init__(self, labware_view: LabwareView, module_view: ModuleView) -> None:
         """Initialize a GeometryView instance."""
         self._labware = labware_view
+        self._modules = module_view
 
     def get_labware_highest_z(self, labware_id: str) -> float:
         """Get the highest Z-point of a labware."""
@@ -169,8 +168,6 @@ class GeometryView:
             volume=int(well_def.totalLiquidVolume),
         )
 
-    # TODO(mc, 2020-11-12): support pre-PAPIv2.2/2.3 behavior of dropping the tip
-    # 10mm above well bottom
     def get_tip_drop_location(
         self,
         pipette_config: PipetteDict,

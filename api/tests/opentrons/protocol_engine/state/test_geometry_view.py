@@ -13,34 +13,74 @@ from opentrons.protocol_engine import errors
 from opentrons.protocol_engine.types import (
     LabwareOffsetVector,
     DeckSlotLocation,
+    ModuleLocation,
     LoadedLabware,
     WellLocation,
     WellOrigin,
     WellOffset,
 )
 from opentrons.protocol_engine.state.labware import LabwareView
+from opentrons.protocol_engine.state.modules import ModuleView
 from opentrons.protocol_engine.state.geometry import GeometryView
 
 
 @pytest.fixture
-def subject(labware_view: LabwareView) -> GeometryView:
+def labware_view(decoy: Decoy) -> LabwareView:
+    """Get a mocked out LabwareView."""
+    return decoy.mock(cls=LabwareView)
+
+
+@pytest.fixture
+def module_view(decoy: Decoy) -> ModuleView:
+    """Get a mocked out ModuleView."""
+    return decoy.mock(cls=ModuleView)
+
+
+@pytest.fixture
+def subject(labware_view: LabwareView, module_view: ModuleView) -> GeometryView:
     """Get a GeometryView with its store dependencies mocked out."""
-    return GeometryView(labware_view=labware_view)
+    return GeometryView(labware_view=labware_view, module_view=module_view)
 
 
-def test_get_labware_parent_position(
+def test_get_labware_parent_position_in_slot(
     decoy: Decoy,
     standard_deck_def: DeckDefinitionV2,
     well_plate_def: LabwareDefinition,
     labware_view: LabwareView,
     subject: GeometryView,
 ) -> None:
-    """It should return a deck slot position for labware in a deck slot."""
+    """It should return a parent position for labware in a deck slot."""
     labware_data = LoadedLabware(
         id="labware-id",
         loadName="b",
         definitionUri=uri_from_details(namespace="a", load_name="b", version=1),
         location=DeckSlotLocation(slotName=DeckSlotName.SLOT_3),
+        offsetId=None,
+    )
+    decoy.when(labware_view.get("labware-id")).then_return(labware_data)
+    decoy.when(labware_view.get_slot_position(DeckSlotName.SLOT_3)).then_return(
+        Point(1, 2, 3)
+    )
+
+    result = subject.get_labware_parent_position("labware-id")
+
+    assert result == Point(1, 2, 3)
+
+
+def test_get_labware_parent_position_on_module(
+    decoy: Decoy,
+    standard_deck_def: DeckDefinitionV2,
+    well_plate_def: LabwareDefinition,
+    labware_view: LabwareView,
+    module_view: ModuleView,
+    subject: GeometryView,
+) -> None:
+    """It should return a parent position for module in a deck slot."""
+    labware_data = LoadedLabware(
+        id="labware-id",
+        loadName="b",
+        definitionUri=uri_from_details(namespace="a", load_name="b", version=1),
+        location=ModuleLocation(moduleId="module-id"),
         offsetId=None,
     )
     decoy.when(labware_view.get("labware-id")).then_return(labware_data)
