@@ -119,8 +119,8 @@ def test_create_starts_background_tasks(
 ) -> None:
     """It should start the queue worker and hardware listener upon creation."""
     decoy.verify(
-        hardware_listener.listen(),
         queue_worker.start(),
+        hardware_listener.listen(),
     )
 
 
