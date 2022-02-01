@@ -1,13 +1,10 @@
 """Tests for the ProtocolEngine class."""
 import pytest
-from anyio import to_thread
 from datetime import datetime
 from decoy import Decoy
-from typing import AsyncGenerator
 
 from opentrons.types import DeckSlotName, MountType
 from opentrons.hardware_control import API as HardwareAPI
-from opentrons.hardware_control.types import DoorStateNotification, DoorState
 from opentrons.protocols.models import LabwareDefinition
 
 from opentrons.protocol_engine import ProtocolEngine, commands
@@ -18,7 +15,11 @@ from opentrons.protocol_engine.types import (
     LabwareOffsetLocation,
     PipetteName,
 )
-from opentrons.protocol_engine.execution import QueueWorker, HardwareStopper
+from opentrons.protocol_engine.execution import (
+    QueueWorker,
+    HardwareStopper,
+    HardwareListener,
+)
 from opentrons.protocol_engine.resources import ModelUtils
 from opentrons.protocol_engine.state import StateStore
 from opentrons.protocol_engine.plugins import AbstractPlugin, PluginStarter
@@ -35,7 +36,6 @@ from opentrons.protocol_engine.actions import (
     FinishErrorDetails,
     QueueCommandAction,
     HardwareStoppedAction,
-    HardwareEventAction,
 )
 
 
@@ -76,19 +76,26 @@ def hardware_api(decoy: Decoy) -> HardwareAPI:
 
 
 @pytest.fixture
+def hardware_listener(decoy: Decoy) -> HardwareListener:
+    """Get a mock HardwareListener."""
+    return decoy.mock(cls=HardwareListener)
+
+
+@pytest.fixture
 def hardware_stopper(decoy: Decoy) -> HardwareStopper:
     """Get a mock HardwareStopper."""
     return decoy.mock(cls=HardwareStopper)
 
 
 @pytest.fixture
-async def base_subject(
+async def subject(
     hardware_api: HardwareAPI,
     state_store: StateStore,
     action_dispatcher: ActionDispatcher,
     plugin_starter: PluginStarter,
     queue_worker: QueueWorker,
     model_utils: ModelUtils,
+    hardware_listener: HardwareListener,
     hardware_stopper: HardwareStopper,
 ) -> ProtocolEngine:
     """Get a ProtocolEngine test subject with its dependencies stubbed out."""
@@ -99,15 +106,9 @@ async def base_subject(
         plugin_starter=plugin_starter,
         queue_worker=queue_worker,
         model_utils=model_utils,
+        hardware_listener=hardware_listener,
         hardware_stopper=hardware_stopper,
     )
-
-
-@pytest.fixture
-async def subject(base_subject: ProtocolEngine) -> AsyncGenerator[ProtocolEngine, None]:
-    """Get a ProtocolEngine test subject and cleanup after use."""
-    yield base_subject
-    await base_subject.finish()
 
 
 def test_create_starts_queue_worker(
@@ -232,6 +233,8 @@ def test_play(
     decoy: Decoy,
     state_store: StateStore,
     action_dispatcher: ActionDispatcher,
+    queue_worker: QueueWorker,
+    hardware_listener: HardwareListener,
     subject: ProtocolEngine,
 ) -> None:
     """It should be able to start executing queued commands."""
@@ -241,6 +244,8 @@ def test_play(
         state_store.commands.raise_if_paused_by_blocking_door(),
         state_store.commands.raise_if_stop_requested(),
         action_dispatcher.dispatch(PlayAction()),
+        hardware_listener.listen(),
+        queue_worker.start(),
     )
 
 
@@ -261,27 +266,6 @@ def test_pause(
     )
 
 
-async def test_hardware_event_handler(
-    decoy: Decoy,
-    state_store: StateStore,
-    action_dispatcher: ActionDispatcher,
-    subject: ProtocolEngine,
-) -> None:
-    """It should be able to pause executing queued commands."""
-    door_open_event = DoorStateNotification(new_state=DoorState.OPEN, blocking=True)
-    expected_action = HardwareEventAction(door_open_event)
-
-    # Call the event handler callback function from a separate thread
-    await to_thread.run_sync(subject.hardware_event_handler, door_open_event)
-
-    # To make sure all actions are dispatched before verifying
-    await subject.finish()
-
-    decoy.verify(
-        action_dispatcher.dispatch(expected_action),
-    )
-
-
 @pytest.mark.parametrize("drop_tips_and_home", [True, False])
 async def test_finish(
     decoy: Decoy,
@@ -291,6 +275,7 @@ async def test_finish(
     hardware_api: HardwareAPI,
     subject: ProtocolEngine,
     hardware_stopper: HardwareStopper,
+    hardware_listener: HardwareListener,
     drop_tips_and_home: bool,
 ) -> None:
     """It should be able to gracefully tell the engine it's done."""
@@ -299,6 +284,7 @@ async def test_finish(
     decoy.verify(
         action_dispatcher.dispatch(FinishAction()),
         await queue_worker.join(),
+        hardware_listener.stop(),
         await hardware_stopper.do_stop_and_recover(
             drop_tips_and_home=drop_tips_and_home
         ),
@@ -313,8 +299,8 @@ async def test_finish_with_error(
     queue_worker: QueueWorker,
     hardware_api: HardwareAPI,
     model_utils: ModelUtils,
-    subject: ProtocolEngine,
     hardware_stopper: HardwareStopper,
+    subject: ProtocolEngine,
 ) -> None:
     """It should be able to tell the engine it's finished because of an error."""
     error = RuntimeError("oh no")
@@ -333,9 +319,7 @@ async def test_finish_with_error(
 
     decoy.verify(
         action_dispatcher.dispatch(FinishAction(error_details=expected_error_details)),
-        await queue_worker.join(),
         await hardware_stopper.do_stop_and_recover(drop_tips_and_home=True),
-        action_dispatcher.dispatch(HardwareStoppedAction()),
     )
 
 
@@ -343,8 +327,11 @@ async def test_finish_stops_hardware_if_queue_worker_join_fails(
     decoy: Decoy,
     queue_worker: QueueWorker,
     hardware_api: HardwareAPI,
-    base_subject: ProtocolEngine,
     hardware_stopper: HardwareStopper,
+    hardware_listener: HardwareListener,
+    action_dispatcher: ActionDispatcher,
+    plugin_starter: PluginStarter,
+    subject: ProtocolEngine,
 ) -> None:
     """It should be able to stop the engine."""
     decoy.when(
@@ -352,11 +339,13 @@ async def test_finish_stops_hardware_if_queue_worker_join_fails(
     ).then_raise(RuntimeError("oh no"))
 
     with pytest.raises(RuntimeError, match="oh no"):
-        await base_subject.finish()
+        await subject.finish()
 
     decoy.verify(
+        hardware_listener.stop(),
         await hardware_stopper.do_stop_and_recover(drop_tips_and_home=True),
-        times=1,
+        action_dispatcher.dispatch(HardwareStoppedAction()),
+        await plugin_starter.stop(),
     )
 
 
