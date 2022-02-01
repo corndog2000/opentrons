@@ -78,7 +78,11 @@ class ProtocolEngine:
             action_dispatcher=self._action_dispatcher,
         )
 
+        # TODO: The constructor isn't the best place to spawn background tasks
+        # like this, because it complicated cleanup in the case of failed
+        # or partially successful initialization
         self._queue_worker.start()
+        self._hardware_listener.listen()
 
     @property
     def state_view(self) -> StateView:
@@ -97,7 +101,6 @@ class ProtocolEngine:
         self._state_store.commands.raise_if_paused_by_blocking_door()
         self._state_store.commands.raise_if_stop_requested()
         self._action_dispatcher.dispatch(action)
-        self._hardware_listener.listen()
         self._queue_worker.start()
 
     def pause(self) -> None:

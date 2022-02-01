@@ -88,7 +88,7 @@ def hardware_stopper(decoy: Decoy) -> HardwareStopper:
 
 
 @pytest.fixture
-async def subject(
+def subject(
     hardware_api: HardwareAPI,
     state_store: StateStore,
     action_dispatcher: ActionDispatcher,
@@ -111,13 +111,17 @@ async def subject(
     )
 
 
-def test_create_starts_queue_worker(
+def test_create_starts_background_tasks(
     decoy: Decoy,
+    hardware_listener: HardwareListener,
     queue_worker: QueueWorker,
     subject: ProtocolEngine,
 ) -> None:
-    """It should start the queue worker upon creation."""
-    decoy.verify(queue_worker.start())
+    """It should start the queue worker and hardware listener upon creation."""
+    decoy.verify(
+        hardware_listener.listen(),
+        queue_worker.start(),
+    )
 
 
 def test_add_command(
@@ -244,7 +248,6 @@ def test_play(
         state_store.commands.raise_if_paused_by_blocking_door(),
         state_store.commands.raise_if_stop_requested(),
         action_dispatcher.dispatch(PlayAction()),
-        hardware_listener.listen(),
         queue_worker.start(),
     )
 
