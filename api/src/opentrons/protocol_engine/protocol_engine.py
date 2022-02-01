@@ -79,7 +79,7 @@ class ProtocolEngine:
         )
 
         # TODO: The constructor isn't the best place to spawn background tasks
-        # like this, because it complicated cleanup in the case of failed
+        # like this, because it complicates cleanup in the case of failed
         # or partially successful initialization
         self._queue_worker.start()
         self._hardware_listener.listen()
