@@ -142,6 +142,7 @@ class StateStore(StateView, ActionHandler):
         self,
         condition: Callable[..., Optional[ReturnT]],
         *args: Any,
+        timeout: Optional[float] = None,
         **kwargs: Any,
     ) -> ReturnT:
         """Wait for a condition to become true, checking whenever state changes.
@@ -165,7 +166,8 @@ class StateStore(StateView, ActionHandler):
         is_done = predicate()
 
         while not is_done:
-            await self._change_notifier.wait()
+            remaining_time = await self._change_notifier.wait(timeout=timeout)
+            timeout = remaining_time
             is_done = predicate()
 
         return is_done

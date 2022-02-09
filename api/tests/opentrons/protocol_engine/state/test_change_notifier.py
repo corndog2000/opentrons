@@ -1,22 +1,60 @@
 """Tests for the ChangeNotifier interface."""
-import asyncio
 import pytest
+from anyio import create_task_group, sleep
+from typing import NamedTuple, Optional, cast
 from opentrons.protocol_engine.state.change_notifier import ChangeNotifier
 
 
-async def test_single_subscriber() -> None:
-    """Test that a single subscriber can wait for a notification."""
+async def _notify(subject: ChangeNotifier, delay: float = 0) -> None:
+    await sleep(delay)
+    subject.notify()
+
+
+class WaitSpec(NamedTuple):
+    """Test data for ChangeNotifier.wait."""
+
+    delay: float
+    timeout: Optional[float]
+    expected: Optional[float]
+
+
+@pytest.mark.parametrize(
+    WaitSpec._fields,
+    [
+        WaitSpec(delay=0, timeout=None, expected=None),
+        WaitSpec(
+            delay=0.1,
+            timeout=1.0,
+            expected=cast(float, pytest.approx(0.9, rel=0.02)),
+        ),
+    ],
+)
+async def test_waits_and_returns_remaining_timeout(
+    delay: float,
+    timeout: Optional[float],
+    expected: Optional[float],
+) -> None:
+    """It should be able to wait with a timeout."""
     subject = ChangeNotifier()
-    result = asyncio.create_task(subject.wait())
 
-    # ensure that the wait actually waits by delaying and
-    # checking that the task has not resolved
-    await asyncio.sleep(0.1)
-    assert result.done() is False
+    async with create_task_group() as tg:
+        tg.start_soon(_notify, subject, delay)
+        result = await subject.wait(timeout=timeout)
 
-    asyncio.get_running_loop().call_soon(subject.notify)
+    assert result == expected
 
-    await result
+
+async def test_raises_timeout_error() -> None:
+    """It should raise a timeout error if the timeout passes."""
+    delay = 0.1
+    timeout = 0.05
+    subject = ChangeNotifier()
+
+    async with create_task_group() as tg:
+        tg.start_soon(_notify, subject, delay)
+
+        with pytest.raises(TimeoutError):
+            await subject.wait(timeout=timeout)
 
 
 @pytest.mark.parametrize("count", range(10))
@@ -24,12 +62,10 @@ async def test_multiple_subscribers(count: int) -> None:
     """Test that multiple subscribers can wait for a notification.
 
     This test checks that the subscribers are awoken in the order they
-    subscribed. This may or may not be guarenteed according to the
-    implementations of both ChangeNotifier and the event loop.
-    This test functions as a canary, given that our code may relies
-    on this ordering for determinism.
+    subscribed, which may or may not be guarenteed according to the
+    implementation of the event loop.
 
-    This test runs multiple times to check for flakyness.
+    The test runs multiple times to check for flakiness.
     """
     subject = ChangeNotifier()
     results = []
@@ -46,11 +82,10 @@ async def test_multiple_subscribers(count: int) -> None:
         await subject.wait()
         results.append(3)
 
-    task_1 = asyncio.create_task(_do_task_1())
-    task_2 = asyncio.create_task(_do_task_2())
-    task_3 = asyncio.create_task(_do_task_3())
-
-    asyncio.get_running_loop().call_soon(subject.notify)
-    await asyncio.gather(task_1, task_2, task_3)
+    async with create_task_group() as tg:
+        tg.start_soon(_do_task_1)
+        tg.start_soon(_do_task_2)
+        tg.start_soon(_do_task_3)
+        tg.start_soon(_notify, subject)
 
     assert results == [1, 2, 3]

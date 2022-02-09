@@ -73,7 +73,7 @@ async def test_wait_for_state(
     result = await subject.wait_for(check_condition, "foo", bar="baz")
     assert result == "hello world"
 
-    decoy.verify(await change_notifier.wait(), times=2)
+    decoy.verify(await change_notifier.wait(timeout=None), times=2)
 
 
 async def test_wait_for_state_short_circuit(
@@ -107,3 +107,25 @@ async def test_wait_for_raises(decoy: Decoy, subject: StateStore) -> None:
 
     with pytest.raises(ValueError, match="oh no"):
         await subject.wait_for(check_condition)
+
+
+async def test_wait_for_with_timeout(
+    decoy: Decoy,
+    change_notifier: ChangeNotifier,
+    subject: StateStore,
+) -> None:
+    """It should feed timeout into the change notifier."""
+    check_condition: Callable[..., Optional[str]] = decoy.mock()
+
+    decoy.when(check_condition(), ignore_extra_args=True).then_return(
+        None,
+        None,
+        "hello world",
+    )
+    decoy.when(await change_notifier.wait(timeout=100.0)).then_return(10.0)
+    decoy.when(await change_notifier.wait(timeout=10.0)).then_raise(
+        TimeoutError("oh no")
+    )
+
+    with pytest.raises(TimeoutError, match="oh no"):
+        await subject.wait_for(check_condition, timeout=100.0)
