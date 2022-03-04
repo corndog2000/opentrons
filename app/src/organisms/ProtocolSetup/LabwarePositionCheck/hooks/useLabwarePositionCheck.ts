@@ -577,8 +577,9 @@ export function useLabwarePositionCheck(
             .map(loadLabwareCommand => loadLabwareCommand.result.definition)
         : []
 
-    // TODO(mc, 2022-03-04): we need to wait for these HTTP requests to resolve
-    // before continuing to issue setup commands to the server
+    // TODO(mc, 2022-03-04): we need to wait for these HTTP requests to
+    // resolve before continuing to issue setup commands to the server
+    // https://github.com/Opentrons/opentrons/issues/9624
     customLabwareDefinitions.forEach(labwareDef => {
       createLabwareDefinition({
         runId: currentRunId,
