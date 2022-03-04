@@ -577,12 +577,14 @@ export function useLabwarePositionCheck(
             .map(loadLabwareCommand => loadLabwareCommand.result.definition)
         : []
 
-    customLabwareDefinitions.forEach(labwareDef =>
+    // TODO(mc, 2022-03-04): we need to wait for these HTTP requests to resolve
+    // before continuing to issue setup commands to the server
+    customLabwareDefinitions.forEach(labwareDef => {
       createLabwareDefinition({
         runId: currentRunId,
         data: labwareDef,
       })
-    )
+    })
 
     // execute prep commands
     prepCommands.forEach(prepCommand => {
