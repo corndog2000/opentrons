@@ -20,7 +20,12 @@ from typing import (
 from opentrons_shared_data.pipette import name_config
 from opentrons import types as top_types
 from opentrons.config import robot_configs
-from opentrons.config.types import RobotConfig, OT3Config, GantryLoad
+from opentrons.config.types import (
+    RobotConfig,
+    OT3Config,
+    GantryLoad,
+    CapacitivePassSettings,
+)
 from .backends.ot3utils import get_system_constraints
 from opentrons_hardware.hardware_control.motion_planning import (
     MoveManager,
@@ -1219,3 +1224,35 @@ class OT3API(
 
     async def remove_tip(self, mount: Union[top_types.Mount, OT3Mount]) -> None:
         await self._instrument_handler.remove_tip(OT3Mount.from_mount(mount))
+
+    async def capacitive_probe(
+        self, mount: OT3Mount, target_pos: float, pass_settings: CapacitivePassSettings
+    ) -> float:
+        """Determine the position of the deck using the capacitive sensor.
+
+        This function orchestrates detecting the position of whatever is under the
+        specified mount using the capacitive sensor on a pipette. It will move
+        the mount's critical point to a small distance below either
+        - by default, the current estimated position of the deck (e.g. 0)
+        - a specified absolute position in deck coordinates
+        while running the tool's capacitive sensor. When the sensor senses contact,
+        the mount stops. This function moves back up and returns the sensed position.
+
+        This sensed position can be used in several ways, including
+        - To alter the z portion of the current mount's offset or of whatever was
+        targeted, if something was guaranteed to be physically present under the mount.
+        - To detect whether the mount was over solid material. If this function
+        returns a value far enough below the anticipated position, then it indicates
+        there was no material there.
+        """
+        here = await self.gantry_position(mount)
+        target = here._replace(z=target_pos + pass_settings.prep_distance_mm)
+        await self.move_to(mount, target)
+        await self._backend.capacitive_probe(
+            mount,
+            pass_settings.prep_distance_mm + pass_settings.max_overrun_distance_mm,
+            pass_settings.speed_mm_per_s,
+        )
+        bottom_pos = await self.gantry_position(mount)
+        await self.move_to(mount, target)
+        return bottom_pos.z
