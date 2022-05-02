@@ -187,7 +187,7 @@ export const getSlotHasMatingSurfaceUnitVector = (
 export const getAdapterName = (
   labwareLoadname: LabwareParameters['loadName']
 ): ThermalAdapterName => {
-  let adapterName: ThermalAdapterName
+  let adapterName: ThermalAdapterName = 'Universal Flat Adapter'
 
   if (labwareLoadname.includes('pcr')) {
     adapterName = 'PCR Adapter'
@@ -195,8 +195,6 @@ export const getAdapterName = (
     adapterName = 'Deep Well Adapter'
   } else if (labwareLoadname.includes('flatbottom')) {
     adapterName = '96 Flat Bottom Adapter'
-  } else {
-    adapterName = 'Universal Flat Adapter'
   }
 
   return adapterName
