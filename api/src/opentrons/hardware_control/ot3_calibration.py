@@ -31,8 +31,12 @@ async def find_deck_position(hcapi: OT3API, mount: OT3Mount) -> float:
     z_offset_settings = hcapi.config.calibration.z_offset
     await hcapi.home_z()
     here = await hcapi.gantry_position(mount)
+    LOG.info(f"my gantry position after home is {here}")
     z_prep_point = Point(*z_offset_settings.point)
-    await hcapi.move_to(mount, z_prep_point._replace(z=here.z))
+    above_point = z_prep_point._replace(z=here.z)
+    LOG.info(f"moving to {above_point}")
+    await hcapi.move_to(mount, above_point)
+    LOG.info("probing")
     deck_z = await hcapi.capacitive_probe(
         mount, z_prep_point.z, z_offset_settings.pass_settings
     )

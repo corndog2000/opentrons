@@ -742,7 +742,9 @@ class OT3API(
         except ZeroLengthMoveError as zero_length_error:
             self._log.info(f"{str(zero_length_error)}, ignoring")
             return
-
+        self._log.info(
+            f"move: {target_position} becomes {machine_pos} from {origin} requiring {moves}"
+        )
         async with contextlib.AsyncExitStack() as stack:
             if acquire_lock:
                 await stack.enter_async_context(self._motion_lock)
@@ -1246,13 +1248,17 @@ class OT3API(
         there was no material there.
         """
         here = await self.gantry_position(mount)
+        self._log.info(f"probe start: at {here}")
         target = here._replace(z=target_pos + pass_settings.prep_distance_mm)
+        self._log.info(f"moving to {target}")
         await self.move_to(mount, target)
+        self._log.info("doing probe")
         await self._backend.capacitive_probe(
             mount,
             pass_settings.prep_distance_mm + pass_settings.max_overrun_distance_mm,
             pass_settings.speed_mm_per_s,
         )
         bottom_pos = await self.gantry_position(mount)
+        self._log.info(f"position now {bottom_pos}, moving back to {target}")
         await self.move_to(mount, target)
         return bottom_pos.z
