@@ -1,4 +1,5 @@
 """Functions for commanding motion limited by tool sensors."""
+import asyncio
 from typing import Union, Dict
 from logging import getLogger
 from numpy import float64
@@ -39,6 +40,7 @@ async def capacitive_probe(
         ),
         messenger,
     )
+    await asyncio.sleep(0.5)
     LOG.info(f"starting capacitive probe with threshold {threshold}")
     pass_group = create_step(
         distance={z_node: float64(distance)},
@@ -52,5 +54,6 @@ async def capacitive_probe(
     async with sensor_scheduler.bind_sync(
         SensorInformation(sensor_type=SensorType.capacitive, node_id=tool), messenger
     ):
+        await asyncio.sleep(0.5)
         position = await runner.run(can_messenger=messenger)
         return position[z_node]
