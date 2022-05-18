@@ -743,7 +743,8 @@ class OT3API(
             self._log.info(f"{str(zero_length_error)}, ignoring")
             return
         self._log.info(
-            f"move: {target_position} becomes {machine_pos} from {origin} requiring {moves}"
+            f"move: {target_position} becomes {machine_pos} from {origin} "
+            f"requiring {moves}"
         )
         async with contextlib.AsyncExitStack() as stack:
             if acquire_lock:

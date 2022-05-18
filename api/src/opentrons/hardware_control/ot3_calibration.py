@@ -115,11 +115,12 @@ async def find_edge(
     stride += edge_settings.search_initial_tolerance_mm * search_direction
     for _ in range(edge_settings.search_iteration_limit):
         LOG.debug(f"Checking position {checking_pos}")
-        await hcapi.move_to(mount, checking_pos._replace(z=CAL_TRANSIT_HEIGHT))
+        check_prep = checking_pos._replace(z=CAL_TRANSIT_HEIGHT)
+        await hcapi.move_to(mount, check_prep)
         interaction_pos = await hcapi.capacitive_probe(
             mount, slot_edge_nominal.z, edge_settings.pass_settings
         )
-        await hcapi.move_rel(mount, Point(0, 0, CAL_TRANSIT_HEIGHT - interaction_pos))
+        await hcapi.move_to(mount, check_prep)
         if (
             interaction_pos
             > slot_edge_nominal.z + edge_settings.early_sense_tolerance_mm
