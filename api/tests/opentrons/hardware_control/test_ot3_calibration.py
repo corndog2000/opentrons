@@ -12,6 +12,7 @@ from opentrons.config.types import OT3CalibrationSettings, Offset
 from opentrons.hardware_control.ot3_calibration import (
     find_edge,
     EarlyCapacitiveSenseTrigger,
+    find_deck_position,
 )
 from opentrons.types import Point
 
@@ -138,3 +139,22 @@ async def test_find_edge_early_trigger(
             OT3Axis.Y,
             -1,
         )
+
+
+@pytest.mark.parametrize("mount", (OT3Mount.RIGHT, OT3Mount.LEFT))
+async def test_find_deck_checks_z_only(
+    ot3_hardware: ThreadManager[OT3API],
+    mock_capacitive_probe: AsyncMock,
+    override_cal_config: None,
+    mock_move_to: AsyncMock,
+    mount: OT3Mount,
+) -> None:
+    await find_deck_position(ot3_hardware, mount)
+    config = ot3_hardware.config.calibration.z_offset
+    first_move_point = mock_move_to.call_args_list[0][0][1]
+    assert first_move_point.x == config.point.x
+    assert first_move_point.y == config.point.y
+
+    second_move_point = mock_move_to.call_args_list[1][0][1]
+    assert second_move_point.x == config.point.x
+    assert second_move_point.y == config.point.y
