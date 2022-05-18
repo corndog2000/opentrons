@@ -178,39 +178,45 @@ async def calibrate_mount(hcapi: OT3API, mount: OT3Mount) -> Point:
     # First, find the deck. This will become our z offset value, and will
     # also be used to baseline the edge detection points.
     z_pos = await find_deck_position(hcapi, mount)
-
+    LOG.info(f"Found deck at {z_pos}mm")
     # Next, find all four edges of the calibration slot
     plus_x_edge = await find_edge(
         hcapi,
         mount,
-        Point(*hcapi.config.calibration.edge_sense.plus_x_pos),
+        Point(*hcapi.config.calibration.edge_sense.plus_x_pos)._replace(z=z_pos),
         OT3Axis.X,
         -1,
     )
+    LOG.info(f"Found +x edge at {plus_x_edge}mm")
     minus_x_edge = await find_edge(
         hcapi,
         mount,
-        Point(*hcapi.config.calibration.edge_sense.minus_x_pos),
+        Point(*hcapi.config.calibration.edge_sense.minus_x_pos)._replace(z=z_pos),
         OT3Axis.X,
         1,
     )
+    LOG.info(f"Found -x edge at {minus_x_edge}mm")
     plus_y_edge = await find_edge(
         hcapi,
         mount,
-        Point(*hcapi.config.calibration.edge_sense.plus_y_pos),
+        Point(*hcapi.config.calibration.edge_sense.plus_y_pos)._replace(z=z_pos),
         OT3Axis.Y,
         -1,
     )
+    LOG.info(f"Found +y edge at {plus_y_edge}mm")
     minus_y_edge = await find_edge(
         hcapi,
         mount,
-        Point(*hcapi.config.calibration.edge_sense.minus_y_pos),
+        Point(*hcapi.config.calibration.edge_sense.minus_y_pos)._replace(z=z_pos),
         OT3Axis.Y,
         1,
     )
+    LOG.info(f"Found -y edge at {minus_y_edge}mm")
 
     # The center of the calibration slot is the average of the edge positions
     # in-plane, and the absolute sense value out-of-plane
-    return Point(
+    center = Point(
         (plus_x_edge + minus_x_edge) / 2, (plus_y_edge + minus_y_edge) / 2, z_pos
     )
+    LOG.info(f"Found calibration value {center} for mount {mount.name}")
+    return center
